@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vancouver ER waits</title>
+<style>
+  :root { --bg:#0e1a17; --card:#f6f3ec; --ink:#1a1a16; --muted:#5c584e; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:17px/1.4 "Segoe UI", Helvetica, Arial, sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:18px 16px 8px; color:#f6f3ec; }
+  header h1 { font-size:22px; margin:0 0 4px; }
+  header p, .note { margin:0; color:#c9d5d0; font-size:14px; }
+  main { padding:12px 14px 28px; max-width:520px; }
+  article { background:var(--card); border-radius:12px; padding:14px 14px 12px; margin:0 0 10px; }
+  h2 { font-size:16px; margin:0; }
+  .city { color:var(--muted); font-size:13px; margin:2px 0 8px; }
+  .wait { font-size:28px; font-weight:700; letter-spacing:-0.02em; }
+  .hours, .read, .drive { margin:6px 0 0; font-size:14px; color:var(--muted); }
+  .total { font-size:16px; font-weight:650; color:var(--ink); margin:8px 0 0; }
+  .note { margin-top:12px; }
+  h2.section { color:#f6f3ec; margin:18px 0 10px; font-size:18px; }
+  .note a { color:#f3d48a; }
+  .closed { color:#8a2e24; }
+  #status { color:#f3d48a; }
+</style>
+</head>
+<body>
+<!--
+Failure behaviour: if a later fetch of edwaittimes.ca fails, keep the last good numbers in this file and show the error time in #status. Do not clear the waits.
+Mount Saint Joseph Hospital and UBC Hospital are Closed outside posted emergency hours, 8:00 a.m. to 8:00 p.m. America/Vancouver (every day). Do not invent hours.
+This snapshot was read 7:26 p.m. PT, October 3, 2026. The site root https://www.edwaittimes.ca/ is a welcome shell with no wait numbers. Numbers below are from the same site's server-rendered https://www.edwaittimes.ca/legacy page (waitTimeMinutes): Vancouver General Hospital 240 ("4 h" on the page), St. Paul's Hospital 165 ("2 h 45 m"), BC Children's Hospital 375 ("6 h 15 m"), Mount Saint Joseph Hospital 120, UBC Hospital 120. That legacy page also painted the word Closed on Mount Saint Joseph and UBC at this read; posted hours on the hospital pages and on edwaittimes are 8 a.m. to 8 p.m., and this read is inside those hours, so the 2 hour waits are shown.
+-->
+<header>
+  <h1>Vancouver ER waits</h1>
+  <p class="note"><a href="https://buymeacoffee.com/kylethomas" target="_blank" rel="noopener noreferrer">Buy me a coffee</a>. Tip for this page. Not a hospital payment.</p>
+  <p class="note" id="updated">Last updated 7:26 p.m. PT, October 3, 2026</p>
+  <p id="status">From edwaittimes.ca</p>
+</header>
+<main>
+  <article>
+    <h2>Vancouver General Hospital</h2>
+    <p class="city">Vancouver</p>
+    <p class="wait" id="vgh">4 hours</p>
+    <p class="drive" id="vgh-drive"></p>
+    <p class="read" id="vgh-read">Read 7:26 p.m. PT, October 3, 2026</p>
+  </article>
+  <article>
+    <h2>St. Paul's Hospital</h2>
+    <p class="city">Vancouver</p>
+    <p class="wait" id="stpauls">2 hours 45 minutes</p>
+    <p class="drive" id="stpauls-drive"></p>
+    <p class="read" id="stpauls-read">Read 7:26 p.m. PT, October 3, 2026</p>
+  </article>
+  <article>
+    <h2>BC Children's Hospital</h2>
+    <p class="city">Vancouver</p>
+    <p class="city">The kids' hospital.</p>
+    <p class="wait" id="bcch">6 hours 15 minutes</p>
+    <p class="drive" id="bcch-drive"></p>
+    <p class="read" id="bcch-read">Read 7:26 p.m. PT, October 3, 2026</p>
+  </article>
+  <article>
+    <h2>Mount Saint Joseph Hospital</h2>
+    <p class="city">Vancouver</p>
+    <p class="wait" id="msj">2 hours</p>
+    <p class="drive" id="msj-drive"></p>
+    <p class="hours">Open 8 a.m. to 8 p.m. only.</p>
+    <p class="read" id="msj-read">Read 7:26 p.m. PT, October 3, 2026</p>
+  </article>
+  <article>
+    <h2>UBC Hospital</h2>
+    <p class="city">Vancouver</p>
+    <p class="wait" id="ubc">2 hours</p>
+    <p class="drive" id="ubc-drive"></p>
+    <p class="hours">Open 8 a.m. to 8 p.m. only.</p>
+    <p class="read" id="ubc-read">Read 7:26 p.m. PT, October 3, 2026</p>
+  </article>
+  <p class="note">Waits are estimates for non-urgent visits. Serious cases jump the queue. Call 911 for an emergency.</p>
+  <p class="note"><a href="https://buymeacoffee.com/kylethomas" target="_blank" rel="noopener noreferrer">Buy me a coffee</a>. A personal tip for this page. Not a hospital payment, and not a charity receipt.</p>
+  <p class="note">Source: <a href="https://www.edwaittimes.ca/">edwaittimes.ca</a>.</p>
+</main>
+<script>
+const SNAP = "7:26 p.m. PT, October 3, 2026";
+const WANTED = [
+  ["Vancouver General Hospital", "vgh", false],
+  ["St. Paul's Hospital", "stpauls", false],
+  ["BC Children's Hospital", "bcch", false],
+  ["Mount Saint Joseph Hospital", "msj", true],
+  ["UBC Hospital", "ubc", true]
+];
+function showSnap(reason) {
+  document.getElementById("status").textContent = reason;
+}
+function stampNow() {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Vancouver",
+    hour: "numeric",
+    minute: "2-digit",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    hour12: true
+  }).formatToParts(new Date());
+  const get = t => parts.find(p => p.type === t).value;
+  const ampm = String(get("dayPeriod")).toLowerCase() === "am" ? "a.m." : "p.m.";
+  return get("hour") + ":" + get("minute") + " " + ampm + " PT, " + get("month") + " " + get("day") + ", " + get("year");
+}
+function vancouverMinutes() {
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: "America/Vancouver", hour: "numeric", minute: "numeric", hourCycle: "h23" }).formatToParts(new Date());
+  const hour = Number(parts.find(p => p.type === "hour").value) % 24;
+  const minute = Number(parts.find(p => p.type === "minute").value);
+  return hour * 60 + minute;
+}
+function limitedClosed() {
+  const mins = vancouverMinutes();
+  return mins < 8 * 60 || mins >= 20 * 60;
+}
+function fmtWait(mins) {
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  const hp = h === 1 ? "hour" : "hours";
+  const mp = m === 1 ? "minute" : "minutes";
+  if (h && m) return h + " " + hp + " " + m + " " + mp;
+  if (h) return h + " " + hp;
+  return m + " " + mp;
+}
+function paint(id, text) {
+  const el = document.getElementById(id);
+  el.textContent = text;
+  el.classList.toggle("closed", /closed/i.test(text));
+}
+fetch("https://www.edwaittimes.ca/legacy", { cache: "no-store" })
+  .then(r => {
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    return r.text();
+  })
+  .then(html => {
+    const raw = (html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/) || [])[1];
+    if (!raw) throw new Error("no wait data");
+    const locs = JSON.parse(raw).props.pageProps.locationsWithWaitTimes || [];
+    const found = {};
+    locs.forEach(loc => {
+      const wt = loc && loc.waitTime;
+      if (loc && loc.name && wt && typeof wt.waitTimeMinutes === "number") found[loc.name] = wt.waitTimeMinutes;
+    });
+    const missing = WANTED.filter(([name]) => !(name in found));
+    if (missing.length) throw new Error("missing " + missing.map(m => m[0]).join(", "));
+    const stamp = stampNow();
+    const offHours = limitedClosed();
+    WANTED.forEach(([name, id, limited]) => {
+      let text = fmtWait(found[name]);
+      if (limited && offHours) text = "Closed";
+      paint(id, text);
+      document.getElementById(id + "-read").textContent = "Read " + stamp;
+    });
+    document.getElementById("updated").textContent = "Last updated " + stamp;
+    document.getElementById("status").textContent = "Read just now from edwaittimes.ca.";
+  })
+  .catch(() => {
+    const offHours = limitedClosed();
+    if (offHours) {
+      ["msj", "ubc"].forEach(id => paint(id, "Closed"));
+    }
+    showSnap("Live read failed at " + stampNow() + ". Last good numbers are still showing, read " + SNAP + ".");
+  });
+
+const PLACES = {
+  vgh: { lon: -123.1226691, lat: 49.2618427, name: "Vancouver General" },
+  stpauls: { lon: -123.1289280, lat: 49.2806187, name: "St. Paul's" },
+  bcch: { lon: -123.1253746, lat: 49.2445028, name: "BC Children's" },
+  msj: { lon: -123.0953324, lat: 49.2583187, name: "Mount Saint Joseph" },
+  ubc: { lon: -123.2457470, lat: 49.2641866, name: "UBC Hospital" }
+};
+function waitMinutes(text) {
+  if (/closed/i.test(text)) return null;
+  const h = text.match(/(\d+)\s*hours?/i);
+  const m = text.match(/(\d+)\s*minutes?/i);
+  if (!h && !m) return null;
+  return (h ? Number(h[1]) : 0) * 60 + (m ? Number(m[1]) : 0);
+}
+function fmt(mins) {
+  const h = Math.floor(mins / 60), m = mins % 60;
+  if (h && m) return h + " h " + m + " min";
+  if (h) return h + " h";
+  return m + " min";
+}
+function showRaw(msg) {
+  document.getElementById("drive-note").textContent = msg;
+}
+function addDrive(lat, lon) {
+  const jobs = Object.entries(PLACES).map(([id, place]) => {
+    const url = "https://router.project-osrm.org/route/v1/driving/" +
+      lon + "," + lat + ";" + place.lon + "," + place.lat + "?overview=false";
+    return fetch(url).then(r => {
+      if (!r.ok) throw new Error("route " + r.status);
+      return r.json();
+    }).then(data => {
+      const sec = data && data.routes && data.routes[0] && data.routes[0].duration;
+      if (!sec && sec !== 0) throw new Error("no route");
+      const drive = Math.max(1, Math.round(sec / 60));
+      const el = document.getElementById(id);
+      const line = document.getElementById(id + "-drive");
+      const wait = waitMinutes(el.textContent);
+      if (wait == null) {
+        line.textContent = "Drive about " + fmt(drive) + ". No total while closed.";
+        return;
+      }
+      line.innerHTML = "Drive about " + fmt(drive) + ". <span class='total'>About " + fmt(wait + drive) + " with the drive.</span>";
+    });
+  });
+  return Promise.all(jobs);
+}
+const note = document.createElement("p");
+note.className = "note";
+note.id = "drive-note";
+note.textContent = "Asking for your location to add drive time.";
+document.querySelector("main").insertBefore(note, document.querySelector("main .note"));
+if (!navigator.geolocation) {
+  showRaw("Location is not available. Showing the ER wait only.");
+} else {
+  navigator.geolocation.getCurrentPosition(pos => {
+    addDrive(pos.coords.latitude, pos.coords.longitude)
+      .then(() => { note.textContent = "Drive time is from your location just now. It is added only when the department shows a wait."; })
+      .catch(() => { showRaw("Drive time could not be calculated. Showing the ER wait only."); });
+  }, () => {
+    showRaw("Location was denied. Showing the ER wait only.");
+  }, { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 });
+}
+</script>
+</body>
+</html>
